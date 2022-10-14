@@ -58,9 +58,30 @@ describe("transform", () => {
 
     expect(css).toMatch(/@layer a, b;/);
   });
+
+  it("should let you pass a base state", () => {
+    expect(() =>
+      transform({
+        outDir: "out",
+        layers: [
+          {
+            type: "import",
+            path: "./fixtures/layer1.css",
+          },
+        ],
+        state: {
+          layers: {
+            a: {
+              color: "red",
+            },
+          },
+        },
+      })
+    ).not.toThrow();
+  });
 });
 
-describe("LayerImport", () => {
+describe("ImportLayer", () => {
   it("should throw if layer.path is not a string", () => {
     expect(() =>
       // @ts-ignore
@@ -86,5 +107,56 @@ describe("LayerImport", () => {
     });
 
     expect(css).toMatch(/@import url\("layer1.css"\) layer\(a\);/);
+  });
+});
+
+describe("ProcessLayer", () => {
+  it("should throw if layer.process is not a function", () => {
+    expect(() =>
+      // @ts-ignore
+      transform({ outDir: "out", layers: [{ type: "process" }] })
+    ).toThrowError("Layer process is required");
+  });
+
+  it("should can read state in Process Layer", () => {
+    // spy on console log
+    const spy = jest.spyOn(console, "log").mockImplementationOnce(() => {});
+
+    transform({
+      state: {
+        colors: {
+          banana: "yellow",
+        },
+      },
+      outDir: "out",
+      layers: [
+        {
+          type: "process",
+          process: (state) => {
+            console.log(state.colors.banana);
+          },
+        },
+      ],
+    });
+
+    expect(spy).toHaveBeenCalledWith("yellow");
+
+    spy.mockRestore();
+  });
+
+  it("should error if looking for state that doesn't exist", () => {
+    expect(() =>
+      transform({
+        outDir: "out",
+        layers: [
+          {
+            type: "process",
+            process: (state) => {
+              console.log(state.colors.banana);
+            },
+          },
+        ],
+      })
+    ).toThrowError("Property not found: ROOT.colors");
   });
 });

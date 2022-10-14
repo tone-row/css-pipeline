@@ -1,15 +1,27 @@
+import { createProxy } from "./createProxy";
 import path from "path";
 
-type LayerImport = {
+/* SharedState is a mutable object that is passed around */
+type SharedState = any;
+
+/** Imports local or remote CSS file */
+type ImportLayer = {
   type: "import";
   path: string;
 };
 
-type Layer = LayerImport;
+/** Processes the shared state */
+type ProcessLayer = {
+  type: "process";
+  process: (state: SharedState) => void;
+};
+
+type Layer = ImportLayer | ProcessLayer;
 
 export type Config = {
   outDir: string;
   layers: Layer[];
+  state?: SharedState;
 };
 
 export function transform(config: Config) {
@@ -25,6 +37,9 @@ export function transform(config: Config) {
 
   // get absolute outDir path
   const outDir = path.resolve(config.outDir);
+
+  // create state object
+  const state: SharedState = config.state || {};
 
   const layersNames: string[] = [];
   const layerStrs: string[] = [];
@@ -56,6 +71,16 @@ export function transform(config: Config) {
           const relativePath = path.relative(outDir, layerPath);
           layerStrs.push(`@import url("${relativePath}") layer(${layerName});`);
         }
+        break;
+      }
+      case "process": {
+        // throw if layer.process is not a function
+        if (typeof layer.process !== "function") {
+          throw new Error("Layer process is required");
+        }
+
+        const proxy = createProxy(state);
+        layer.process(proxy);
         break;
       }
       default:
